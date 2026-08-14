@@ -1,0 +1,17 @@
+packages:
+  - .
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - '@tailwindcss/oxide'
+  - core-js
+  - esbuild
+  - protobufjs
+  - sharp
+  - unrs-resolver
+  - workerd
+
+# Sites currently installs with a pnpm release that does not reliably honor the
+# allowlist above for every transitive native package. Keep the explicit list
+# for auditability and permit those lifecycle scripts during the hosted build.
+dangerouslyAllowAllBuilds: true
