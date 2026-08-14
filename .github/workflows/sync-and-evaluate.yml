@@ -1,0 +1,52 @@
+name: Sync and evaluate knowledge base
+on:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install pipeline dependencies
+        run: python -m pip install -r pipeline/requirements.txt
+      - name: Discover publications
+        env:
+          ORCID_IDS: 0000-0001-5870-5730
+        run: python pipeline/discover.py
+      - name: Build license-aware ingestion bundle
+        run: python pipeline/ingest.py
+      - name: Publish reviewed metadata and text to D1
+        env:
+          CHAIN_SCOPE_BASE_URL: ${{ secrets.CHAIN_SCOPE_BASE_URL }}
+          INGEST_ADMIN_TOKEN: ${{ secrets.INGEST_ADMIN_TOKEN }}
+        run: python pipeline/publish.py bundle
+      - name: Embed and index approved open content
+        env:
+          DASHSCOPE_API_KEY: ${{ secrets.DASHSCOPE_API_KEY }}
+          DASHSCOPE_BASE_URL: ${{ secrets.DASHSCOPE_BASE_URL }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_VECTORIZE_TOKEN: ${{ secrets.CLOUDFLARE_VECTORIZE_TOKEN }}
+          VECTORIZE_INDEX_NAME: ${{ secrets.VECTORIZE_INDEX_NAME }}
+        run: python pipeline/index.py
+      - name: Run four retrieval ablations
+        env:
+          CHAIN_SCOPE_BASE_URL: ${{ secrets.CHAIN_SCOPE_BASE_URL }}
+          EVALUATION_ADMIN_TOKEN: ${{ secrets.EVALUATION_ADMIN_TOKEN }}
+        run: python pipeline/run_evaluation.py
+      - name: Score fixed evaluation set
+        run: python pipeline/evaluate.py
+      - name: Publish truthful evaluation result
+        env:
+          CHAIN_SCOPE_BASE_URL: ${{ secrets.CHAIN_SCOPE_BASE_URL }}
+          INGEST_ADMIN_TOKEN: ${{ secrets.INGEST_ADMIN_TOKEN }}
+        run: python pipeline/publish.py evaluation
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chainscope-pipeline-output
+          path: pipeline/output/
+          retention-days: 14
